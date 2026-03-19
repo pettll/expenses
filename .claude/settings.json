@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$(echo '$CLAUDE_TOOL_INPUT' | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('file_path',''))\" 2>/dev/null)\"; if echo \"$file\" | grep -qE '\\.swift$'; then swiftc -typecheck \"$file\" -sdk $(xcrun --show-sdk-path --sdk iphonesimulator) 2>&1 | head -20; fi",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=\"$(echo '$CLAUDE_TOOL_INPUT' | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('file_path',''))\" 2>/dev/null)\"; if echo \"$file\" | grep -qE '\\.swift$'; then grep -n 'UserDefaults.*api_key\\|UserDefaults.*secret' \"$file\" && echo 'SECURITY WARNING: API key/secret stored in UserDefaults — use Keychain instead' || true; fi",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild:*)",
+      "Bash(xcrun:*)",
+      "Bash(swiftlint:*)",
+      "Bash(swiftformat:*)",
+      "Bash(swift:*)"
+    ]
+  }
+}
