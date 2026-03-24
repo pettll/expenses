@@ -4,6 +4,7 @@ import SwiftUI
 
 struct CategoryRulesView: View {
     @ObservedObject var categoryService: CategoryService
+    @EnvironmentObject private var categoryStore: CategoryCustomizationStore
 
     private let categories = TransactionCategory.allCases.filter { $0 != .unknown && $0 != .other }
 
@@ -17,7 +18,7 @@ struct CategoryRulesView: View {
                         CategoryKeywordsView(category: cat, categoryService: categoryService)
                     } label: {
                         HStack {
-                            Text(cat.rawValue)
+                            Text(categoryStore.displayName(for: cat))
                                 .foregroundStyle(.white)
                             Spacer()
                             let count = categoryService.keywords(for: cat).count
@@ -48,6 +49,7 @@ struct CategoryRulesView: View {
 struct CategoryKeywordsView: View {
     let category: TransactionCategory
     @ObservedObject var categoryService: CategoryService
+    @EnvironmentObject private var categoryStore: CategoryCustomizationStore
 
     @State private var newKeyword = ""
     @FocusState private var isEditing: Bool
@@ -64,7 +66,7 @@ struct CategoryKeywordsView: View {
                 GlassSection(title: "ADD KEYWORD") {
                     HStack(spacing: 8) {
                         TextField("e.g. starbucks, deliveroo…", text: $newKeyword)
-                            .foregroundStyle(.white).tint(.cyan)
+                            .foregroundStyle(.white).tint(.appAccent)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                             .focused($isEditing)
@@ -72,7 +74,7 @@ struct CategoryKeywordsView: View {
                         Button { addKeyword() } label: {
                             Image(systemName: "plus.circle.fill")
                                 .font(.title3)
-                                .foregroundStyle(newKeyword.trimmingCharacters(in: .whitespaces).isEmpty ? .white.opacity(0.25) : .cyan)
+                                .foregroundStyle(newKeyword.trimmingCharacters(in: .whitespaces).isEmpty ? .white.opacity(0.25) : .appAccent)
                         }
                         .disabled(newKeyword.trimmingCharacters(in: .whitespaces).isEmpty)
                         .padding(.trailing, 14)
@@ -91,7 +93,7 @@ struct CategoryKeywordsView: View {
                     List {
                         ForEach(keywords, id: \.self) { kw in
                             HStack(spacing: 10) {
-                                Image(systemName: "tag").font(.caption).foregroundStyle(.cyan.opacity(0.7))
+                                Image(systemName: "tag").font(.caption).foregroundStyle(.appAccent.opacity(0.7))
                                 Text(kw).foregroundStyle(.white)
                             }
                             .listRowBackground(
@@ -108,12 +110,12 @@ struct CategoryKeywordsView: View {
                 }
             }
         }
-        .navigationTitle(category.rawValue)
+        .navigationTitle(categoryStore.displayName(for: category))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") { isEditing = false }.foregroundStyle(.cyan)
+                Button("Done") { isEditing = false }.foregroundStyle(.appAccent)
             }
         }
     }

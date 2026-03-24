@@ -41,7 +41,16 @@ Banking App Notification → NotificationParser → Transaction (SwiftData) → 
 
 - **`SheetsService`** — POSTs transactions as JSON to a user-deployed Google Apps Script URL. Tracks `syncedToSheets`/`syncError` per transaction. Optional `X-App-Secret` header for endpoint auth.
 
-- **`NotificationParser`** — Regex patterns with named capture groups (`merchant`, `amount`, `currency`) for parsing banking notifications. Built-in patterns for Apple Pay, Monzo, Starling. Patterns stored/edited in UserDefaults.
+- **`NotificationParser`** — Regex patterns with named capture groups (`merchant`, `amount`, `currency`) for parsing banking notifications. Built-in patterns for Apple Pay, Monzo, Starling, American Express. Patterns stored/edited in UserDefaults.
+
+  **Supported banks (defaults):**
+  | Pattern | Format | Bundle ID filter |
+  |---|---|---|
+  | Apple Pay (£) | `Merchant £amount` | `com.apple.PassbookUIService` |
+  | Apple Pay (multi-currency) | `Merchant [CCY] amount` | `com.apple.PassbookUIService` |
+  | Monzo | `You paid £amount at Merchant` | `co.monzo.Monzo` |
+  | Starling | `Merchant: £amount` | `com.starlingbank.StarlingBank` |
+  | American Express | `Merchant\n£amount` (title = merchant, body = amount) | any (empty = all) |
 
 ### Data Model
 
@@ -55,10 +64,6 @@ All user configuration lives in UserDefaults (not Keychain — a known security 
 - `anthropic_api_key` — Anthropic key for AI categorization
 - `google_script_url` — Deployed Apps Script endpoint
 - `google_script_secret` — Optional shared secret
-
-## Known Issues
-
-- **`ContentView.swift`** references the old `Item` type (renamed to `Transaction`) — the app will not compile until this is fixed. Replace `[Item]` with `[Transaction]` and `Item(timestamp:)` with `Transaction(...)`.
 
 ## Security Constraints
 

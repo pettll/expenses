@@ -9,11 +9,11 @@ struct ExpenseSummary {
     let lastUpdated:  Date
 
     static func read() -> ExpenseSummary {
-        let d = UserDefaults(suiteName: "group.com.psmuller.expenses")
+        let d = UserDefaults(suiteName: "group.com.psmuller.expenses") ?? .standard
         return ExpenseSummary(
-            dailyTotal:   d?.double(forKey: "widgetDailyTotal")  ?? 0,
-            monthlyTotal: d?.double(forKey: "widgetMonthlyTotal") ?? 0,
-            lastUpdated:  d?.object(forKey: "widgetLastUpdated") as? Date ?? .distantPast
+            dailyTotal:   d.double(forKey: "widgetDailyTotal"),
+            monthlyTotal: d.double(forKey: "widgetMonthlyTotal"),
+            lastUpdated:  d.object(forKey: "widgetLastUpdated") as? Date ?? .distantPast
         )
     }
 
@@ -52,8 +52,8 @@ struct SmallWidgetView: View {
         ZStack {
             ContainerRelativeShape()
                 .fill(LinearGradient(
-                    colors: [Color(red: 0.16, green: 0.05, blue: 0.46),
-                             Color(red: 0.0,  green: 0.28, blue: 0.38)],
+                    colors: [Color(red: 0.08, green: 0.04, blue: 0.48),
+                             Color(red: 0.44, green: 0.00, blue: 0.38)],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 ))
 
@@ -92,8 +92,8 @@ struct MediumWidgetView: View {
         ZStack {
             ContainerRelativeShape()
                 .fill(LinearGradient(
-                    colors: [Color(red: 0.16, green: 0.05, blue: 0.46),
-                             Color(red: 0.0,  green: 0.28, blue: 0.38)],
+                    colors: [Color(red: 0.08, green: 0.04, blue: 0.48),
+                             Color(red: 0.44, green: 0.00, blue: 0.38)],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 ))
 
@@ -145,7 +145,7 @@ struct ExpensesSmallWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: ExpensesProvider()) { entry in
             SmallWidgetView(entry: entry)
-                .containerBackground(for: .widget) { Color(red: 0.05, green: 0.02, blue: 0.18) }
+                .containerBackground(for: .widget) { Color(red: 0.02, green: 0.00, blue: 0.12) }
         }
         .configurationDisplayName("Expenses")
         .description("Daily and monthly spending at a glance.")
@@ -158,7 +158,7 @@ struct ExpensesMediumWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: ExpensesProvider()) { entry in
             MediumWidgetView(entry: entry)
-                .containerBackground(for: .widget) { Color(red: 0.05, green: 0.02, blue: 0.18) }
+                .containerBackground(for: .widget) { Color(red: 0.02, green: 0.00, blue: 0.12) }
         }
         .configurationDisplayName("Expenses")
         .description("Totals plus quick Add and Sync actions.")

@@ -13,9 +13,9 @@ import Testing
 @MainActor
 struct CategoryServiceTests {
 
-    @Test func localCategorisesKnownFoodMerchant() {
+    @Test func localCategorisesKnownCoffeeMerchant() {
         let service = CategoryService()
-        #expect(service.localCategorise(merchant: "Starbucks") == .foodAndDrink)
+        #expect(service.localCategorise(merchant: "Starbucks") == .coffee)
     }
 
     @Test func localCategorisesKnownTransportMerchant() {
@@ -23,9 +23,9 @@ struct CategoryServiceTests {
         #expect(service.localCategorise(merchant: "Uber") == .transport)
     }
 
-    @Test func localCategorisesKnownShoppingMerchant() {
+    @Test func localCategorisesKnownToileriesMerchant() {
         let service = CategoryService()
-        #expect(service.localCategorise(merchant: "Amazon") == .shopping)
+        #expect(service.localCategorise(merchant: "Amazon") == .toiletries)
     }
 
     @Test func localCategorisesKnownHealthMerchant() {
@@ -40,8 +40,8 @@ struct CategoryServiceTests {
 
     @Test func localCategorisationIsCaseInsensitive() {
         let service = CategoryService()
-        #expect(service.localCategorise(merchant: "MCDONALDS") == .foodAndDrink)
-        #expect(service.localCategorise(merchant: "mcdonalds") == .foodAndDrink)
+        #expect(service.localCategorise(merchant: "MCDONALDS") == .diningOut)
+        #expect(service.localCategorise(merchant: "mcdonalds") == .diningOut)
     }
 
     @Test func customKeywordsOverrideDefaults() {
@@ -53,8 +53,8 @@ struct CategoryServiceTests {
     @Test func keywordsRoundtrip() {
         let service = CategoryService()
         let keywords = ["testshop1", "testshop2"]
-        service.setKeywords(keywords, for: .shopping)
-        #expect(service.keywords(for: .shopping) == keywords)
+        service.setKeywords(keywords, for: .clothes)
+        #expect(service.keywords(for: .clothes) == keywords)
     }
 }
 
@@ -138,13 +138,13 @@ struct NotificationParserTests {
 struct TransactionModelTests {
 
     @Test func sheetsRowHasCorrectColumnOrder() {
-        let t = Transaction(amount: 9.99, currency: "GBP", merchant: "Pret", category: .foodAndDrink, source: .manual)
+        let t = Transaction(amount: 9.99, currency: "GBP", merchant: "Pret", category: .diningOut, source: .manual)
         let row = t.sheetsRow
         // Columns: Timestamp | Value | Currency | Category | Merchant
         #expect(row.count == 5)
         #expect(row[1] == "9.99")
         #expect(row[2] == "GBP")
-        #expect(row[3] == "Food & Drink")
+        #expect(row[3] == "Dining Out")
         #expect(row[4] == "Pret")
     }
 

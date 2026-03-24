@@ -88,24 +88,30 @@ class CategoryService: ObservableObject {
 
     var defaultKeywords: [String: [String]] {
         [
-            TransactionCategory.foodAndDrink.rawValue: [
-                "restaurant", "cafe", "coffee", "bar", "pub", "pizza", "burger",
-                "sushi", "tesco", "sainsbury", "waitrose", "lidl", "aldi", "morrisons",
-                "co-op", "marks", "pret", "greggs", "mcdonalds", "kfc", "subway",
-                "starbucks", "costa", "nero", "wine", "brewery", "kitchen", "dining",
-                "eat", "food", "grill", "bistro", "brasserie", "tapas", "curry"
+            TransactionCategory.alcohol.rawValue: [
+                "bar", "pub", "brewery", "wine", "beer", "spirits", "wetherspoons",
+                "craft beer", "bottle shop", "off licence", "majestic", "naked wine"
             ],
-            TransactionCategory.transport.rawValue: [
-                "uber", "lyft", "bolt", "taxi", "cab", "tfl", "tube", "rail",
-                "train", "bus", "coach", "national rail", "gwr", "avanti", "eurostar",
-                "parking", "petrol", "shell", "bp", "esso", "fuel", "garage",
-                "mot", "halfords", "kwikfit", "heathrow", "gatwick", "stansted"
+            TransactionCategory.bills.rawValue: [
+                "council tax", "water", "electric", "gas", "broadband", "bt ",
+                "virgin media", "sky broadband", "o2", "vodafone", "ee ", "three",
+                "insurance", "mortgage", "rent", "landlord", "hmrc", "tv licence",
+                "bulb", "octopus energy", "british gas", "e.on", "npower"
             ],
-            TransactionCategory.shopping.rawValue: [
-                "amazon", "ebay", "etsy", "asos", "zara", "h&m", "primark",
-                "next", "john lewis", "selfridges", "harrods", "tk maxx", "boots",
-                "superdrug", "argos", "currys", "apple store", "ikea", "b&q",
-                "homebase", "screwfix", "wickes", "shop", "store", "market"
+            TransactionCategory.clothes.rawValue: [
+                "asos", "zara", "h&m", "primark", "next", "topshop", "uniqlo",
+                "nike", "adidas", "gap", "river island", "urban outfitters",
+                "cos", "mango", "reiss", "ted baker", "whistles"
+            ],
+            TransactionCategory.coffee.rawValue: [
+                "starbucks", "costa", "nero", "pret", "coffee", "cafe", "flat white",
+                "espresso", "barista", "brew", "roaster", "grind"
+            ],
+            TransactionCategory.diningOut.rawValue: [
+                "restaurant", "pizza", "burger", "sushi", "greggs", "mcdonalds",
+                "kfc", "subway", "nandos", "wagamama", "itsu", "leon", "dishoom",
+                "eat", "food", "grill", "bistro", "brasserie", "tapas", "curry",
+                "kitchen", "dining", "chophouse", "steakhouse", "ramen"
             ],
             TransactionCategory.entertainment.rawValue: [
                 "netflix", "spotify", "apple music", "disney", "amazon prime",
@@ -113,23 +119,42 @@ class CategoryService: ObservableObject {
                 "gallery", "concert", "ticketmaster", "eventbrite", "steam",
                 "playstation", "xbox", "nintendo", "game", "sky", "now tv"
             ],
+            TransactionCategory.gifts.rawValue: [
+                "gift", "flower", "moonpig", "funky pigeon", "prezzy", "notonthehighstreet",
+                "etsy", "card factory", "clintons", "hallmark"
+            ],
+            TransactionCategory.groceries.rawValue: [
+                "tesco", "sainsbury", "waitrose", "lidl", "aldi", "morrisons",
+                "co-op", "marks", "ocado", "asda", "iceland", "farmfoods",
+                "wholefood", "trader joe", "supermarket"
+            ],
             TransactionCategory.health.rawValue: [
                 "pharmacy", "chemist", "doctor", "dentist", "optician", "hospital",
                 "clinic", "gym", "fitness", "puregym", "david lloyd", "anytime fitness",
                 "nuffield", "virgin active", "pilates", "yoga", "physio",
-                "nhs", "bupa", "vitality", "axa health"
+                "nhs", "bupa", "vitality", "axa health", "boots", "superdrug"
             ],
-            TransactionCategory.travel.rawValue: [
+            TransactionCategory.study.rawValue: [
+                "udemy", "coursera", "skillshare", "pluralsight", "linkedin learning",
+                "university", "college", "tuition", "book", "textbook", "amazon kindle",
+                "audible", "apple books", "waterstones", "foyles"
+            ],
+            TransactionCategory.toiletries.rawValue: [
+                "toiletries", "household", "cleaning", "ikea", "dunelm", "argos",
+                "b&q", "homebase", "screwfix", "wickes", "wilko", "poundland",
+                "home bargains", "the range", "amazon basics"
+            ],
+            TransactionCategory.transport.rawValue: [
+                "uber", "lyft", "bolt", "taxi", "cab", "tfl", "tube", "rail",
+                "train", "bus", "coach", "national rail", "gwr", "avanti", "eurostar",
+                "parking", "petrol", "shell", "bp", "esso", "fuel", "garage",
+                "mot", "halfords", "kwikfit", "heathrow", "gatwick", "stansted"
+            ],
+            TransactionCategory.trips.rawValue: [
                 "hotel", "airbnb", "booking.com", "expedia", "kayak", "hostel",
                 "resort", "holiday", "inn", "marriott", "hilton", "hyatt",
                 "ibis", "premier inn", "travelodge", "flight", "airways",
                 "british airways", "easyjet", "ryanair", "wizz", "lufthansa"
-            ],
-            TransactionCategory.billsAndUtilities.rawValue: [
-                "council tax", "water", "electric", "gas", "broadband", "bt ",
-                "virgin media", "sky broadband", "o2", "vodafone", "ee ", "three",
-                "insurance", "mortgage", "rent", "landlord", "hmrc", "tv licence",
-                "bulb", "octopus energy", "british gas", "e.on", "npower"
             ]
         ]
     }

@@ -1,23 +1,14 @@
-//
-//  expensesApp.swift
-//  expenses
-//
-//  Created by Peterson Segatto Muller on 17/03/2026.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct expensesApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Transaction.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
+    var sharedModelContainer: ModelContainer = {
+        let schema = Schema([Transaction.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: [config])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }

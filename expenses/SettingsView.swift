@@ -1,15 +1,22 @@
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var allTransactions: [Transaction]
+
     @ObservedObject var sheetsService: SheetsService
     @ObservedObject var categoryService: CategoryService
 
-    @State private var scriptURL = ""
-    @State private var secret    = ""
-    @State private var apiKey    = ""
-    @State private var isTesting = false
+    @AppStorage("mainCurrency") private var mainCurrency = "GBP"
+
+    @State private var scriptURL         = ""
+    @State private var secret            = ""
+    @State private var apiKey            = ""
+    @State private var isTesting         = false
     @State private var testResult: TestResult?
-    @State private var saved     = false
+    @State private var saved             = false
+    @State private var confirmDeleteAll  = false
     @FocusState private var focused: Field?
 
     enum TestResult { case success, failure(String) }
@@ -45,7 +52,7 @@ struct SettingsView: View {
                                     .padding(.horizontal, 16)
                                     .padding(.top, 12)
                                 TextField("https://script.google.com/…", text: $scriptURL)
-                                    .foregroundStyle(.white).tint(.cyan)
+                                    .foregroundStyle(.white).tint(.appAccent)
                                     .autocorrectionDisabled()
                                     .textInputAutocapitalization(.never)
                                     .keyboardType(.URL)
@@ -59,8 +66,8 @@ struct SettingsView: View {
                                     .foregroundStyle(.white.opacity(0.5))
                                     .padding(.horizontal, 16)
                                     .padding(.top, 12)
-                                TextField("X-App-Secret header value", text: $secret)
-                                    .foregroundStyle(.white).tint(.cyan)
+                                SecureField("X-App-Secret header value", text: $secret)
+                                    .foregroundStyle(.white).tint(.appAccent)
                                     .autocorrectionDisabled()
                                     .textInputAutocapitalization(.never)
                                     .focused($focused, equals: .secret)
@@ -84,7 +91,7 @@ struct SettingsView: View {
                                     }
                                 }
                                 .font(.body.weight(.medium))
-                                .foregroundStyle(scriptURL.isEmpty || isTesting ? .white.opacity(0.3) : .cyan)
+                                .foregroundStyle(scriptURL.isEmpty || isTesting ? .white.opacity(0.3) : .appAccent)
                                 .padding(.horizontal, 16).padding(.vertical, 13)
                             }
                             .disabled(scriptURL.isEmpty || isTesting)
@@ -104,7 +111,7 @@ struct SettingsView: View {
                                     .padding(.horizontal, 16)
                                     .padding(.top, 12)
                                 SecureField("sk-ant-…", text: $apiKey)
-                                    .foregroundStyle(.white).tint(.cyan)
+                                    .foregroundStyle(.white).tint(.appAccent)
                                     .autocorrectionDisabled()
                                     .textInputAutocapitalization(.never)
                                     .focused($focused, equals: .apiKey)
@@ -112,13 +119,44 @@ struct SettingsView: View {
                             }
                         }
 
+                        // MARK: Display
+                        GlassSection(title: "DISPLAY") {
+                            HStack {
+                                Image(systemName: "coloncurrencysign.circle").foregroundStyle(.appAccent)
+                                Text("Main Currency")
+                                    .font(.body).foregroundStyle(.white)
+                                Spacer()
+                                Picker("", selection: $mainCurrency) {
+                                    ForEach(["GBP", "USD", "EUR", "BRL", "JPY", "INR", "AUD", "CAD", "CHF", "SGD"], id: \.self) {
+                                        Text($0).tag($0)
+                                    }
+                                }
+                                .tint(.appAccent)
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 12)
+                        }
+
                         // MARK: Category rules
                         GlassSection(title: "AUTO-CATEGORISATION RULES") {
+                            NavigationLink {
+                                CategoryEditorView(sheetsService: sheetsService)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "pencil").foregroundStyle(.appAccent)
+                                    Text("Category Names")
+                                        .font(.body).foregroundStyle(.white)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption).foregroundStyle(.white.opacity(0.4))
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 14)
+                            }
+                            GlassDivider()
                             NavigationLink {
                                 CategoryRulesView(categoryService: categoryService)
                             } label: {
                                 HStack {
-                                    Image(systemName: "tag.fill").foregroundStyle(.cyan)
+                                    Image(systemName: "tag.fill").foregroundStyle(.appAccent)
                                     Text("Keyword Rules")
                                         .font(.body).foregroundStyle(.white)
                                     Spacer()
@@ -127,6 +165,30 @@ struct SettingsView: View {
                                 }
                                 .padding(.horizontal, 16).padding(.vertical, 14)
                             }
+                        }
+
+                        // MARK: Danger Zone
+                        GlassSection(title: "DANGER ZONE") {
+                            Button { confirmDeleteAll = true } label: {
+                                HStack(spacing: 14) {
+                                    Image(systemName: "trash.fill")
+                                        .font(.body)
+                                        .foregroundStyle(.red)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Delete All Transactions")
+                                            .font(.body.weight(.medium))
+                                            .foregroundStyle(.red)
+                                        Text(allTransactions.isEmpty
+                                             ? "No transactions"
+                                             : "\(allTransactions.count) transaction\(allTransactions.count == 1 ? "" : "s")")
+                                            .font(.caption)
+                                            .foregroundStyle(.white.opacity(0.4))
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 14)
+                            }
+                            .disabled(allTransactions.isEmpty)
                         }
 
                         // MARK: Save
@@ -152,10 +214,20 @@ struct SettingsView: View {
             }
         }
         .onAppear { load() }
+        .alert(
+            "Delete \(allTransactions.count) transaction\(allTransactions.count == 1 ? "" : "s")?",
+            isPresented: $confirmDeleteAll
+        ) {
+            Button("Delete from app and Sheets", role: .destructive) { deleteAll(fromSheets: true) }
+            Button("Delete from app only", role: .destructive) { deleteAll(fromSheets: false) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This cannot be undone.")
+        }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") { focused = nil }.foregroundStyle(.cyan)
+                Button("Done") { focused = nil }.foregroundStyle(.appAccent)
             }
         }
     }
@@ -178,6 +250,18 @@ struct SettingsView: View {
         }
     }
 
+    private func deleteAll(fromSheets: Bool) {
+        let toDelete = allTransactions
+        if fromSheets {
+            Task {
+                for tx in toDelete where tx.syncedToSheets {
+                    try? await sheetsService.deleteFromSheet(transaction: tx)
+                }
+            }
+        }
+        for tx in toDelete { modelContext.delete(tx) }
+    }
+
     private func testConnection() {
         saveSettings()
         isTesting  = true
@@ -193,3 +277,4 @@ struct SettingsView: View {
         }
     }
 }
+

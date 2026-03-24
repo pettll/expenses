@@ -2,55 +2,14 @@ import SwiftUI
 import SwiftData
 import Charts
 
-// MARK: - Period
-
-enum InsightPeriod: String, CaseIterable, Identifiable {
-    case week    = "Week"
-    case month   = "Month"
-    case quarter = "Quarter"
-    case year    = "Year"
-
-    var id: String { rawValue }
-
-    func dateRange() -> ClosedRange<Date> {
-        let cal = Calendar.current
-        let now = Date()
-        switch self {
-        case .week:
-            let start = cal.date(byAdding: .day, value: -6, to: cal.startOfDay(for: now))!
-            return start...now
-        case .month:
-            let comps = cal.dateComponents([.year, .month], from: now)
-            let start = cal.date(from: comps)!
-            return start...now
-        case .quarter:
-            let start = cal.date(byAdding: .month, value: -3, to: now)!
-            return start...now
-        case .year:
-            var comps = cal.dateComponents([.year], from: now)
-            comps.month = 1; comps.day = 1
-            let start = cal.date(from: comps)!
-            return start...now
-        }
-    }
-
-    // Granularity label for time-series grouping
-    var bucketComponent: Calendar.Component {
-        switch self {
-        case .week:    return .day
-        case .month:   return .day
-        case .quarter: return .weekOfYear
-        case .year:    return .month
-        }
-    }
-}
-
 // MARK: - Data helpers
 
 private struct CategoryTotal: Identifiable {
-    let category: TransactionCategory
+    let key: String   // customCategoryKey for custom, category.rawValue for standard
+    let name: String
+    let color: Color
     let total: Double
-    var id: String { category.rawValue }
+    var id: String { key }
 }
 
 private struct TimeBucket: Identifiable {
@@ -62,37 +21,104 @@ private struct TimeBucket: Identifiable {
 // MARK: - Insights View
 
 struct InsightsView: View {
+    @EnvironmentObject private var categoryStore: CategoryCustomizationStore
     @Query(sort: \Transaction.timestamp, order: .reverse) private var all: [Transaction]
 
-    @State private var period: InsightPeriod = .month
-    @State private var selectedCategory: TransactionCategory? = nil
+    let exchangeRateService: ExchangeRateService
 
-    private var range: ClosedRange<Date> { period.dateRange() }
+    @AppStorage("mainCurrency") private var mainCurrency = "GBP"
+    @State private var rangeStart: Date = Calendar.current.date(
+        from: Calendar.current.dateComponents([.year, .month], from: Date())
+    ) ?? Date()
+    @State private var rangeEnd: Date = Date()
+    @State private var selectedCategoryKey: String? = nil
+    @State private var selectedBucket: TimeBucket? = nil
+    @State private var convertedAmounts: [UUID: Double] = [:]
+
+    // MARK: Derived data
+
+    private var filterRange: ClosedRange<Date> {
+        let lo = min(rangeStart, rangeEnd)
+        let hi = max(rangeStart, rangeEnd)
+        return lo...hi
+    }
+
+    private var rangeTaskKey: String {
+        "\(filterRange.lowerBound)_\(filterRange.upperBound)_\(mainCurrency)"
+    }
+
+    private func computeConvertedAmounts() async {
+        let base = all.filter { filterRange.contains($0.timestamp) }
+        var result: [UUID: Double] = [:]
+        for tx in base {
+            guard !Task.isCancelled else { return }
+            result[tx.id] = await exchangeRateService.convert(amount: tx.amount, from: tx.currency, date: tx.timestamp) ?? tx.amount
+        }
+        guard !Task.isCancelled else { return }
+        convertedAmounts = result
+    }
+
+    private func convertedAmount(for tx: Transaction) -> Double {
+        convertedAmounts[tx.id] ?? tx.amount
+    }
 
     private var filtered: [Transaction] {
-        all.filter { range.contains($0.timestamp) }
-           .filter { selectedCategory == nil || $0.category == selectedCategory }
+        let base = all.filter { filterRange.contains($0.timestamp) }
+        guard let key = selectedCategoryKey else { return base }
+        return base.filter { tx in
+            if let ck = tx.customCategoryKey { return ck == key }
+            return tx.category.rawValue == key
+        }
     }
 
     private var categoryTotals: [CategoryTotal] {
-        let inRange = all.filter { range.contains($0.timestamp) }
-        let grouped = Dictionary(grouping: inRange, by: \.category)
-        return grouped.map { CategoryTotal(category: $0.key, total: $0.value.reduce(0) { $0 + $1.amount }) }
-                      .sorted { $0.total > $1.total }
+        let base = all.filter { filterRange.contains($0.timestamp) }
+        var groups: [String: (name: String, color: Color, total: Double)] = [:]
+        for tx in base {
+            let key: String
+            let name: String
+            let color: Color
+            if let ck = tx.customCategoryKey,
+               let custom = categoryStore.customCategories.first(where: { $0.id == ck }) {
+                key = ck
+                name = custom.name
+                color = Color(red: 0.4, green: 0.6, blue: 0.7)
+            } else {
+                key = tx.category.rawValue
+                name = categoryStore.displayName(for: tx.category)
+                color = categoryColor(tx.category)
+            }
+            let existing = groups[key] ?? (name: name, color: color, total: 0)
+            groups[key] = (name: name, color: color, total: existing.total + convertedAmount(for: tx))
+        }
+        return groups
+            .map { CategoryTotal(key: $0.key, name: $0.value.name, color: $0.value.color, total: $0.value.total) }
+            .filter { $0.total > 0 }
+            .sorted { $0.total > $1.total }
+    }
+
+    private var bucketComponent: Calendar.Component {
+        let days = Calendar.current.dateComponents([.day], from: rangeStart, to: rangeEnd).day ?? 0
+        if days <= 60  { return .day }
+        if days <= 180 { return .weekOfYear }
+        return .month
     }
 
     private var timeBuckets: [TimeBucket] {
         guard !filtered.isEmpty else { return [] }
         let cal = Calendar.current
-        let comp = period.bucketComponent
+        let comp = bucketComponent
         let grouped = Dictionary(grouping: filtered) { tx -> Date in
-            cal.dateInterval(of: comp, for: tx.timestamp)!.start
+            cal.dateInterval(of: comp, for: tx.timestamp)?.start ?? tx.timestamp
         }
-        return grouped.map { TimeBucket(date: $0.key, total: $0.value.reduce(0) { $0 + $1.amount }) }
-                      .sorted { $0.date < $1.date }
+        return grouped
+            .map { TimeBucket(date: $0.key, total: $0.value.reduce(0.0) { $0 + convertedAmount(for: $1) }) }
+            .sorted { $0.date < $1.date }
     }
 
-    private var grandTotal: Double { filtered.reduce(0) { $0 + $1.amount } }
+    private var grandTotal: Double { filtered.reduce(0.0) { $0 + convertedAmount(for: $1) } }
+
+    // MARK: Body
 
     var body: some View {
         ZStack {
@@ -106,7 +132,7 @@ struct InsightsView: View {
                             Text("Insights")
                                 .font(.largeTitle.bold())
                                 .foregroundStyle(.white)
-                            Text("£\(grandTotal, specifier: "%.2f") \(selectedCategory.map { "· \($0.rawValue)" } ?? "")")
+                            Text("\(formatAmount(grandTotal, currency: mainCurrency))\(selectedCategoryKey.map { key in " · \(categoryTotals.first(where: { $0.key == key })?.name ?? key)" } ?? "")")
                                 .font(.subheadline)
                                 .foregroundStyle(.white.opacity(0.55))
                                 .animation(.spring, value: grandTotal)
@@ -116,33 +142,46 @@ struct InsightsView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
 
-                    // Period picker
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(InsightPeriod.allCases) { p in
-                                PeriodChip(label: p.rawValue, selected: period == p) {
-                                    withAnimation(.spring(duration: 0.3)) { period = p }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
+                    // Date range
+                    HStack(spacing: 10) {
+                        Text("From")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.55))
+                        DatePicker("", selection: $rangeStart, in: ...rangeEnd, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .colorScheme(.dark)
+                            .tint(.appAccent)
+                            .labelsHidden()
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.35))
+                        DatePicker("", selection: $rangeEnd, in: rangeStart..., displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .colorScheme(.dark)
+                            .tint(.appAccent)
+                            .labelsHidden()
+                        Spacer()
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.horizontal, 20)
 
                     // Category filter chips
                     if !categoryTotals.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                PeriodChip(label: "All", selected: selectedCategory == nil) {
-                                    withAnimation(.spring(duration: 0.3)) { selectedCategory = nil }
+                                PeriodChip(label: "All", selected: selectedCategoryKey == nil) {
+                                    withAnimation(.spring(duration: 0.3)) { selectedCategoryKey = nil }
                                 }
                                 ForEach(categoryTotals) { ct in
                                     PeriodChip(
-                                        label: ct.category.rawValue,
-                                        selected: selectedCategory == ct.category,
-                                        color: categoryColor(ct.category)
+                                        label: ct.name,
+                                        selected: selectedCategoryKey == ct.key,
+                                        color: ct.color
                                     ) {
                                         withAnimation(.spring(duration: 0.3)) {
-                                            selectedCategory = selectedCategory == ct.category ? nil : ct.category
+                                            selectedCategoryKey = selectedCategoryKey == ct.key ? nil : ct.key
                                         }
                                     }
                                 }
@@ -151,18 +190,18 @@ struct InsightsView: View {
                         }
                     }
 
-                    // Bar chart: spending by category
-                    if !categoryTotals.isEmpty && selectedCategory == nil {
+                    // Bar chart: by category
+                    if !categoryTotals.isEmpty && selectedCategoryKey == nil {
                         GlassSection(title: "BY CATEGORY") {
                             Chart(categoryTotals) { ct in
                                 BarMark(
                                     x: .value("Amount", ct.total),
-                                    y: .value("Category", ct.category.rawValue)
+                                    y: .value("Category", ct.name)
                                 )
-                                .foregroundStyle(categoryColor(ct.category).gradient)
+                                .foregroundStyle(ct.color.gradient)
                                 .cornerRadius(6)
                                 .annotation(position: .trailing) {
-                                    Text("£\(ct.total, specifier: "%.0f")")
+                                    Text(formatAmount(ct.total, currency: mainCurrency))
                                         .font(.caption2)
                                         .foregroundStyle(.white.opacity(0.6))
                                 }
@@ -181,7 +220,7 @@ struct InsightsView: View {
                         .padding(.horizontal, 20)
                     }
 
-                    // Area chart: spending over time
+                    // Area chart: over time
                     GlassSection(title: "OVER TIME") {
                         if timeBuckets.isEmpty {
                             Text("No data for this period")
@@ -196,7 +235,7 @@ struct InsightsView: View {
                                 )
                                 .foregroundStyle(
                                     LinearGradient(
-                                        colors: [.cyan.opacity(0.5), .cyan.opacity(0.05)],
+                                        colors: [.appAccent.opacity(0.5), .appAccent.opacity(0.05)],
                                         startPoint: .top, endPoint: .bottom
                                     )
                                 )
@@ -204,31 +243,63 @@ struct InsightsView: View {
                                     x: .value("Date", bucket.date),
                                     y: .value("Amount", bucket.total)
                                 )
-                                .foregroundStyle(.cyan)
+                                .foregroundStyle(.appAccent)
                                 .lineStyle(StrokeStyle(lineWidth: 2))
                                 PointMark(
                                     x: .value("Date", bucket.date),
                                     y: .value("Amount", bucket.total)
                                 )
-                                .foregroundStyle(.cyan)
-                                .symbolSize(30)
-                            }
-                            .chartXAxis {
-                                AxisMarks(preset: .aligned) { _ in
-                                    AxisValueLabel(format: xAxisFormat)
-                                        .foregroundStyle(Color.white.opacity(0.6))
-                                        .font(.caption2)
+                                .foregroundStyle(.appAccent)
+                                .symbolSize(selectedBucket?.date == bucket.date ? 60 : 30)
+                                if let sel = selectedBucket, sel.date == bucket.date {
+                                    RuleMark(x: .value("Date", sel.date))
+                                        .foregroundStyle(.white.opacity(0.3))
+                                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                                        .annotation(position: .top, alignment: .center, spacing: 4) {
+                                            VStack(spacing: 2) {
+                                                Text(formatAmount(sel.total, currency: mainCurrency))
+                                                    .font(.caption2.weight(.semibold))
+                                                    .foregroundStyle(.white)
+                                                Text(sel.date.formatted(date: .abbreviated, time: .omitted))
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.white.opacity(0.65))
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                                        }
                                 }
                             }
+                            .chartXAxis(.hidden)
                             .chartYAxis {
                                 AxisMarks(preset: .aligned) { value in
                                     AxisValueLabel {
                                         if let d = value.as(Double.self) {
-                                            Text("£\(d, specifier: "%.0f")")
+                                            Text(formatAmount(d, currency: mainCurrency))
                                                 .font(.caption2)
                                                 .foregroundStyle(.white.opacity(0.6))
                                         }
                                     }
+                                }
+                            }
+                            .chartOverlay { proxy in
+                                GeometryReader { geo in
+                                    Rectangle().fill(.clear).contentShape(Rectangle())
+                                        .gesture(
+                                            DragGesture(minimumDistance: 0)
+                                                .onChanged { value in
+                                                    let origin = proxy.plotFrame.map { geo[$0].origin } ?? .zero
+                                                    let x = value.location.x - origin.x
+                                                    if let date: Date = proxy.value(atX: x), !timeBuckets.isEmpty {
+                                                        selectedBucket = timeBuckets.min {
+                                                            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+                                                        }
+                                                    }
+                                                }
+                                                .onEnded { _ in
+                                                    withAnimation(.easeOut(duration: 0.3)) { selectedBucket = nil }
+                                                }
+                                        )
                                 }
                             }
                             .frame(height: 180)
@@ -237,38 +308,36 @@ struct InsightsView: View {
                     }
                     .padding(.horizontal, 20)
 
-                    // Summary rows per category
+                    // Breakdown list
                     if !categoryTotals.isEmpty {
                         GlassSection(title: "BREAKDOWN") {
                             ForEach(Array(categoryTotals.enumerated()), id: \.element.id) { idx, ct in
                                 Button {
                                     withAnimation(.spring(duration: 0.3)) {
-                                        selectedCategory = selectedCategory == ct.category ? nil : ct.category
+                                        selectedCategoryKey = selectedCategoryKey == ct.key ? nil : ct.key
                                     }
                                 } label: {
                                     HStack(spacing: 12) {
                                         Circle()
-                                            .fill(categoryColor(ct.category))
+                                            .fill(ct.color)
                                             .frame(width: 10, height: 10)
-                                        Text(ct.category.rawValue)
+                                        Text(ct.name)
                                             .font(.subheadline)
                                             .foregroundStyle(.white)
                                         Spacer()
-                                        Text("£\(ct.total, specifier: "%.2f")")
+                                        Text(formatAmount(ct.total, currency: mainCurrency))
                                             .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(.white)
-                                        if let sel = selectedCategory, sel == ct.category {
+                                        if selectedCategoryKey == ct.key {
                                             Image(systemName: "checkmark")
                                                 .font(.caption)
-                                                .foregroundStyle(.cyan)
+                                                .foregroundStyle(.appAccent)
                                         }
                                     }
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
                                 }
-                                if idx < categoryTotals.count - 1 {
-                                    GlassDivider()
-                                }
+                                if idx < categoryTotals.count - 1 { GlassDivider() }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -279,14 +348,7 @@ struct InsightsView: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
-    }
-
-    private var xAxisFormat: Date.FormatStyle {
-        switch period {
-        case .week, .month: return .dateTime.day().month(.abbreviated)
-        case .quarter:      return .dateTime.month(.abbreviated).day()
-        case .year:         return .dateTime.month(.abbreviated)
-        }
+        .task(id: rangeTaskKey) { await computeConvertedAmounts() }
     }
 }
 
@@ -295,21 +357,21 @@ struct InsightsView: View {
 private struct PeriodChip: View {
     let label: String
     let selected: Bool
-    var color: Color = .cyan
+    var color: Color = .appAccent
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(label)
                 .font(.subheadline.weight(selected ? .semibold : .regular))
-                .foregroundStyle(selected ? .black : .white.opacity(0.7))
+                .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
-                .background(
-                    selected ? AnyShapeStyle(color) : AnyShapeStyle(.white.opacity(0.12)),
-                    in: Capsule()
-                )
         }
+        .glassEffect(
+            selected ? Glass.regular.tint(color).interactive() : Glass.regular.interactive(),
+            in: .capsule
+        )
     }
 }
 
@@ -317,13 +379,19 @@ private struct PeriodChip: View {
 
 func categoryColor(_ category: TransactionCategory) -> Color {
     switch category {
-    case .foodAndDrink:      return .orange
-    case .transport:         return .blue
-    case .shopping:          return .pink
-    case .entertainment:     return .purple
-    case .health:            return .green
-    case .travel:            return .cyan
-    case .billsAndUtilities: return .yellow
-    default:                 return Color(white: 0.55)
+    case .alcohol:       return Color(red: 0.6, green: 0.2, blue: 0.8)
+    case .bills:         return .yellow
+    case .clothes:       return .pink
+    case .coffee:        return Color(red: 0.72, green: 0.45, blue: 0.2)
+    case .diningOut:     return .orange
+    case .entertainment: return .purple
+    case .gifts:         return Color(red: 0.95, green: 0.4, blue: 0.55)
+    case .groceries:     return .green
+    case .health:        return Color(red: 0.2, green: 0.8, blue: 0.5)
+    case .study:         return .appAccent
+    case .toiletries:    return Color(red: 0.3, green: 0.7, blue: 0.9)
+    case .transport:     return .blue
+    case .trips:         return Color(red: 0.1, green: 0.7, blue: 0.6)
+    default:             return Color(white: 0.55)
     }
 }

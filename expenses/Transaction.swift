@@ -1,22 +1,61 @@
 import Foundation
 import SwiftData
 
-enum TransactionSource: String, Codable {
+enum TransactionSource: String, Codable, CaseIterable {
     case walletNotification = "wallet"
-    case shortcut = "shortcut"
-    case manual = "manual"
+    case shortcut           = "shortcut"
+    case manual             = "manual"
+    case sheetsSync         = "sheets"
+
+    var displayName: String {
+        switch self {
+        case .walletNotification: return "Bank Sync"
+        case .shortcut:           return "Shortcut"
+        case .manual:             return "Manual"
+        case .sheetsSync:         return "Sheets"
+        }
+    }
 }
 
 enum TransactionCategory: String, Codable, CaseIterable {
-    case foodAndDrink = "Food & Drink"
-    case transport = "Transport"
-    case shopping = "Shopping"
+    case alcohol = "Alcohol"
+    case bills = "Bills"
+    case clothes = "Clothes"
+    case coffee = "Coffee"
+    case diningOut = "Dining Out"
     case entertainment = "Entertainment"
+    case gifts = "Gifts"
+    case groceries = "Groceries"
     case health = "Health"
-    case travel = "Travel"
-    case billsAndUtilities = "Bills & Utilities"
     case other = "Other"
+    case study = "Study"
+    case toiletries = "Toiletries/Household"
+    case transport = "Transport"
+    case trips = "Trips"
     case unknown = "Unknown"
+
+    // Maps raw values from the old category set so SwiftData can load
+    // records that were saved before the rename without crashing.
+    private static let legacyMapping: [String: TransactionCategory] = [
+        "Food & Drink":     .diningOut,
+        "Shopping":         .other,
+        "Travel":           .trips,
+        "Bills & Utilities":.bills
+        // "Transport", "Entertainment", "Health", "Other", "Unknown"
+        // share the same raw value and are handled by init(rawValue:) directly.
+    ]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        if let value = TransactionCategory(rawValue: raw) {
+            self = value
+        } else if let mapped = TransactionCategory.legacyMapping[raw] {
+            self = mapped
+        } else {
+            self = .other
+        }
+    }
 }
 
 @Model
@@ -31,6 +70,10 @@ final class Transaction {
     var rawNotificationText: String?
     var syncedToSheets: Bool
     var syncError: String?
+    /// When set, overrides `category` for display — the transaction belongs to a custom (user-created) category.
+    var customCategoryKey: String?
+    /// External transaction ID (e.g. GoCardless) — prevents duplicate imports.
+    var externalTransactionId: String?
 
     init(
         id: UUID = UUID(),

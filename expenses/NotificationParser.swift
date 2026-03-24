@@ -44,6 +44,14 @@ struct NotificationPattern: Codable, Identifiable {
                 regex: #"(?<merchant>.+?): (?<currency>[£$€])(?<amount>[\d,]+\.?\d*)"#,
                 groupMapping: ["merchant": "merchant", "amount": "amount", "currency": "currency"],
                 bundleIdentifiers: ["com.starlingbank.StarlingBank"]
+            ),
+            // American Express — notification title = merchant, body = £amount (no Apple Wallet bundle ID)
+            // Format: "Blink Uk\n£8.00"  (title\nbody after join)
+            NotificationPattern(
+                name: "American Express",
+                regex: #"(?<merchant>[^\n]+?)\s+(?<currency>[£$€])(?<amount>[\d,]+\.?\d*)"#,
+                groupMapping: ["merchant": "merchant", "amount": "amount", "currency": "currency"],
+                bundleIdentifiers: []
             )
         ]
     }
